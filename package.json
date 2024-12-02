@@ -5,12 +5,10 @@
   "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "node src/services/server.js"
+    "dev": "node src/services/server.js",
+    "build-css": "npx tailwindcss -i ./src/styles/main.css -o ./dist/styles.css --minify",
+    "build": "npm run build-css"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "description": "",
   "dependencies": {
     "@langchain/core": "^0.3.18",
     "@langchain/openai": "^0.3.13",
@@ -30,5 +28,8 @@
     "pdf-to-text": "^0.0.7",
     "pdf2json": "^3.1.4",
     "pdfjs-dist": "^4.8.69"
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.3.0"
   }
 }
