@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "node src/services/server.js"
+    "dev": "node src/services/server.js",
+    "build": "echo 'No build step needed'"
   },
   "keywords": [],
   "author": "",
