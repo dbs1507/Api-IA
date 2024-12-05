@@ -267,11 +267,186 @@
 
 // #################################################### Versao refatorada com OpenIa client compativel com Ollama usando llama 2
 
-import { GridFSBucket } from "mongodb";
-import { getDb, closeConnection } from "../services/db.js";
-import axios from "axios";
-import * as pdfjsLib from "pdfjs-dist";
+// import { GridFSBucket } from "mongodb";
+// import { getDb, closeConnection } from "../services/db.js";
+// import axios from "axios";
+// import * as pdfjsLib from "pdfjs-dist";
+// import OpenAI from 'openai';
+
+// export default class OrbitaController {
+//     // Instância estática reutilizável do cliente OpenAI
+//     static openaiClient = new OpenAI({
+//         baseURL: 'http://localhost:11434/v1', // Base URL do Ollama
+//         apiKey: 'ollama', // Não é usada diretamente
+//     });
+
+//     // Recupera PDFs do MongoDB
+//     static async recovePDF() {
+//         try {
+//             const db = await getDb("apiIA_db");
+//             const bucket = new GridFSBucket(db, { bucketName: "docs" });
+//             const files = await db.collection("docs.files").find({}).toArray();
+
+//             if (!files || files.length === 0) {
+//                 console.log("Nenhum arquivo PDF encontrado na coleção.");
+//                 return [];
+//             }
+
+//             const pdfBuffers = [];
+//             for (const file of files) {
+//                 const chunks = [];
+//                 const downloadStream = bucket.openDownloadStream(file._id);
+
+//                 const pdfBuffer = await new Promise((resolve, reject) => {
+//                     downloadStream.on("data", (chunk) => chunks.push(chunk));
+//                     downloadStream.on("end", () => resolve(Buffer.concat(chunks)));
+//                     downloadStream.on("error", (err) => reject(err));
+//                 });
+
+//                 pdfBuffers.push({ filename: file.filename, buffer: pdfBuffer });
+//                 console.log(`Arquivo '${file.filename}' carregado.`);
+//             }
+
+//             return pdfBuffers;
+//         } catch (error) {
+//             console.error("Erro ao recuperar os PDFs:", error);
+//             throw error;
+//         }
+//     }
+
+//     // Divide texto em chunks
+//     static splitText(text, chunkSize = 512) {
+//         return text.match(new RegExp(`.{1,${chunkSize}}`, 'g')) || [];
+//     }
+
+//     // Gera embeddings usando a API da OpenAI
+//     static async generateEmbedding(text) {
+//         try {
+//             const response = await OrbitaController.openaiClient.embeddings.create({
+//                 model: 'all-minilm',
+//                 input: text,
+//             });
+//             return response.data[0].embedding;
+//         } catch (error) {
+//             console.error("Erro ao gerar embeddings:", error);
+//             throw error;
+//         }
+//     }
+
+//     // Processa PDFs e gera embeddings
+//     static async processPDFs() {
+//         try {
+//             const pdfBuffers = await OrbitaController.recovePDF();
+//             const embeddings = [];
+//             const documents = [];
+
+//             for (const pdf of pdfBuffers) {
+//                 console.log(`Processando: ${pdf.filename}`);
+//                 const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(pdf.buffer) });
+//                 const pdfDocument = await loadingTask.promise;
+
+//                 for (let i = 1; i <= pdfDocument.numPages; i++) {
+//                     const page = await pdfDocument.getPage(i);
+//                     const textContent = await page.getTextContent();
+//                     const pageText = textContent.items.map((item) => item.str).join(" \n");
+//                     const chunks = OrbitaController.splitText(pageText);
+
+//                     for (const [index, chunk] of chunks.entries()) {
+//                         const embedding = await OrbitaController.generateEmbedding(chunk);
+//                         embeddings.push(embedding);
+
+//                         documents.push({
+//                             content: chunk,
+//                             metadata: { filename: pdf.filename, page: i, chunkIndex: index },
+//                         });
+//                     }
+//                 }
+//             }
+
+//             console.log("Documentos processados:", documents.length);
+//             console.log("Embeddings gerados:", embeddings.length);
+
+//             return { embeddings, documents };
+//         } catch (error) {
+//             console.error("Erro ao processar PDFs:", error);
+//             throw error;
+//         } finally {
+//             await closeConnection();
+//         }
+//     }
+
+//     // Busca documentos similares
+//     static async findSimilarDocuments(queryEmbedding, embeddings, documents) {
+//         const similarities = embeddings.map((embedding, index) => ({
+//             document: documents[index],
+//             score: OrbitaController.cosineSimilarity(queryEmbedding, embedding),
+//         }));
+
+//         console.log("Similar documents', " + similarities.sort((a, b) => b.score - a.score).slice(0, 50))
+
+//         return similarities.sort((a, b) => b.score - a.score).slice(0, 10);
+//     }
+
+//     // Calcula similaridade de cosseno
+//     static cosineSimilarity(a, b) {
+//         const dotProduct = a.reduce((sum, val, idx) => sum + val * b[idx], 0);
+//         const magnitudeA = Math.sqrt(a.reduce((sum, val) => sum + val ** 2, 0));
+//         const magnitudeB = Math.sqrt(b.reduce((sum, val) => sum + val ** 2, 0));
+
+//         console.log("Cosine similarity', " + magnitudeA)
+//         console.log("Magnitude B', " + magnitudeB)
+//         console.log("Dot product', " + dotProduct)
+
+//         return dotProduct / (magnitudeA * magnitudeB);
+//     }
+
+//     // Processa a consulta do usuário
+//     static async talk_ia(req, res) {
+//         const { text } = req.body;
+
+//         try {
+//             const { embeddings, documents } = await OrbitaController.processPDFs();
+//             const queryEmbedding = await OrbitaController.generateEmbedding(text);
+//             const similarDocs = await OrbitaController.findSimilarDocuments(queryEmbedding, embeddings, documents);
+
+//             const prompt = `
+//             ### Pergunta do usuário:
+//             ${text}
+            
+//             ### Dados relevantes:
+//             ${similarDocs.map((doc) => doc.document.content).join("\n\n")}
+            
+//             ### Instruções:
+//             Você é uma assistente que responde exclusivamente em Português do Brasil. 
+//             - Responda à pergunta com base apenas nas informações fornecidas em "Dados relevantes".
+//             - Não mencione a origem das informações (documentos ou arquivos).
+//             - Use uma linguagem clara, direta e objetiva. Evite formalidades excessivas.
+//             - Responda sempre em Português do Brasil, sem exceções.
+//             `;
+            
+
+//             const completion = await OrbitaController.openaiClient.chat.completions.create({
+//                 model: 'llama2:13b',
+//                 messages: [
+//                     { role: "system", content: `Você é uma assistente que responde exclusivamente em Português do Brasil. Siga o prompt a seguir: ${prompt}` },
+//                     { role: "user", content: text }
+//                 ],
+//             });
+
+//             return res.status(200).json(completion.choices[0].message.content);
+//         } catch (error) {
+//             console.error("Erro ao processar a solicitação:", error);
+//             return res.status(500).send("Erro ao processar a solicitação.");
+//         }
+//     }
+    
+// }
+
+
+//////////////////////////////// Codigo v3 para PDF IA
+
 import OpenAI from 'openai';
+import { getDb } from "../services/db.js";
 
 export default class OrbitaController {
     // Instância estática reutilizável do cliente OpenAI
@@ -280,123 +455,50 @@ export default class OrbitaController {
         apiKey: 'ollama', // Não é usada diretamente
     });
 
-    // Recupera PDFs do MongoDB
-    static async recovePDF() {
+    // Carrega embeddings e metadados diretamente do banco de dados
+    static async loadEmbeddings() {
         try {
             const db = await getDb("apiIA_db");
-            const bucket = new GridFSBucket(db, { bucketName: "docs" });
-            const files = await db.collection("docs.files").find({}).toArray();
+            const embeddingsCollection = db.collection("embeddings");
 
-            if (!files || files.length === 0) {
-                console.log("Nenhum arquivo PDF encontrado na coleção.");
-                return [];
+            // Busca todos os embeddings
+            const embeddingsData = await embeddingsCollection.find({}).toArray();
+            if (!embeddingsData || embeddingsData.length === 0) {
+                throw new Error("Nenhum embedding encontrado no banco de dados.");
             }
 
-            const pdfBuffers = [];
-            for (const file of files) {
-                const chunks = [];
-                const downloadStream = bucket.openDownloadStream(file._id);
-
-                const pdfBuffer = await new Promise((resolve, reject) => {
-                    downloadStream.on("data", (chunk) => chunks.push(chunk));
-                    downloadStream.on("end", () => resolve(Buffer.concat(chunks)));
-                    downloadStream.on("error", (err) => reject(err));
-                });
-
-                pdfBuffers.push({ filename: file.filename, buffer: pdfBuffer });
-                console.log(`Arquivo '${file.filename}' carregado.`);
-            }
-
-            return pdfBuffers;
-        } catch (error) {
-            console.error("Erro ao recuperar os PDFs:", error);
-            throw error;
-        }
-    }
-
-    // Divide texto em chunks
-    static splitText(text, chunkSize = 512) {
-        return text.match(new RegExp(`.{1,${chunkSize}}`, 'g')) || [];
-    }
-
-    // Gera embeddings usando a API da OpenAI
-    static async generateEmbedding(text) {
-        try {
-            const response = await OrbitaController.openaiClient.embeddings.create({
-                model: 'all-minilm',
-                input: text,
-            });
-            return response.data[0].embedding;
-        } catch (error) {
-            console.error("Erro ao gerar embeddings:", error);
-            throw error;
-        }
-    }
-
-    // Processa PDFs e gera embeddings
-    static async processPDFs() {
-        try {
-            const pdfBuffers = await OrbitaController.recovePDF();
-            const embeddings = [];
-            const documents = [];
-
-            for (const pdf of pdfBuffers) {
-                console.log(`Processando: ${pdf.filename}`);
-                const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(pdf.buffer) });
-                const pdfDocument = await loadingTask.promise;
-
-                for (let i = 1; i <= pdfDocument.numPages; i++) {
-                    const page = await pdfDocument.getPage(i);
-                    const textContent = await page.getTextContent();
-                    const pageText = textContent.items.map((item) => item.str).join(" \n");
-                    const chunks = OrbitaController.splitText(pageText);
-
-                    for (const [index, chunk] of chunks.entries()) {
-                        const embedding = await OrbitaController.generateEmbedding(chunk);
-                        embeddings.push(embedding);
-
-                        documents.push({
-                            content: chunk,
-                            metadata: { filename: pdf.filename, page: i, chunkIndex: index },
-                        });
-                    }
+            const embeddings = embeddingsData.map(data => data.embedding);
+            const documents = embeddingsData.map(data => ({
+                content: data.content,
+                metadata: {
+                    filename: data.filename,
+                    page: data.page,
+                    chunkIndex: data.chunk_index
                 }
-            }
-
-            console.log("Documentos processados:", documents.length);
-            console.log("Embeddings gerados:", embeddings.length);
+            }));
 
             return { embeddings, documents };
         } catch (error) {
-            console.error("Erro ao processar PDFs:", error);
+            console.error("Erro ao carregar embeddings:", error);
             throw error;
-        } finally {
-            await closeConnection();
         }
     }
 
-    // Busca documentos similares
+    // Busca documentos similares com base nos embeddings
     static async findSimilarDocuments(queryEmbedding, embeddings, documents) {
         const similarities = embeddings.map((embedding, index) => ({
             document: documents[index],
             score: OrbitaController.cosineSimilarity(queryEmbedding, embedding),
         }));
 
-        console.log("Similar documents', " + similarities.sort((a, b) => b.score - a.score).slice(0, 50))
-
         return similarities.sort((a, b) => b.score - a.score).slice(0, 10);
     }
 
-    // Calcula similaridade de cosseno
+    // Calcula a similaridade de cosseno
     static cosineSimilarity(a, b) {
         const dotProduct = a.reduce((sum, val, idx) => sum + val * b[idx], 0);
         const magnitudeA = Math.sqrt(a.reduce((sum, val) => sum + val ** 2, 0));
         const magnitudeB = Math.sqrt(b.reduce((sum, val) => sum + val ** 2, 0));
-
-        console.log("Cosine similarity', " + magnitudeA)
-        console.log("Magnitude B', " + magnitudeB)
-        console.log("Dot product', " + dotProduct)
-
         return dotProduct / (magnitudeA * magnitudeB);
     }
 
@@ -405,10 +507,16 @@ export default class OrbitaController {
         const { text } = req.body;
 
         try {
-            const { embeddings, documents } = await OrbitaController.processPDFs();
+            // Carrega embeddings e documentos do banco
+            const { embeddings, documents } = await OrbitaController.loadEmbeddings();
+
+            // Gera o embedding da pergunta do usuário
             const queryEmbedding = await OrbitaController.generateEmbedding(text);
+
+            // Busca documentos similares
             const similarDocs = await OrbitaController.findSimilarDocuments(queryEmbedding, embeddings, documents);
 
+            // Monta o prompt para o modelo
             const prompt = `
             ### Pergunta do usuário:
             ${text}
@@ -418,96 +526,54 @@ export default class OrbitaController {
             
             ### Instruções:
             Você é uma assistente que responde exclusivamente em Português do Brasil. 
+            - Responda de forma amigável, empática e natural, como se fosse uma conversa.
             - Responda à pergunta com base apenas nas informações fornecidas em "Dados relevantes".
             - Não mencione a origem das informações (documentos ou arquivos).
             - Use uma linguagem clara, direta e objetiva. Evite formalidades excessivas.
             - Responda sempre em Português do Brasil, sem exceções.
-            `;
-            
+            - Encerre a resposta convidando o usuário a perguntar mais, como "Posso ajudar com mais alguma coisa?".
 
+            `;
+
+            // Envia o prompt para o modelo
             const completion = await OrbitaController.openaiClient.chat.completions.create({
-                model: 'llama2',
+                model: 'llama2:13b',
                 messages: [
-                    { role: "system", content: `Você é uma assistente que responde exclusivamente em Português do Brasil. Siga o prompt a seguir: ${prompt}` },
+                    { role: "system", content: prompt },
                     { role: "user", content: text }
                 ],
             });
+            const resposta = completion.choices[0].message.content
+                .replace(/\n/g, '')
+                .replace(/  /g, ' ')
+                .replace(/ ,/g, ',')
+                .replace(/\. /g, '.')
+                .replace(/ \./g, '.')
+                .replace(/  /g, ' ')
+                .replace(/\.\. /g, '. ')
+                .trim();
 
-            return res.status(200).json(completion.choices[0].message.content);
+            return res.status(200).json(resposta);
         } catch (error) {
             console.error("Erro ao processar a solicitação:", error);
             return res.status(500).send("Erro ao processar a solicitação.");
         }
     }
 
-    // static async recoveImage() {
-    //     try {
-    //         const db = await getDb("apiIA_db");
-    //         const bucket = new GridFSBucket(db, { bucketName: "image" });
-    //         const files = await db.collection("image.files").find({}).toArray();
-    
-    //         if (!files || files.length === 0) {
-    //             console.log("Nenhum arquivo encontrado na coleção.");
-    //             return null;
-    //         }
-    
-    //         // Recupera o primeiro arquivo da coleção (ajuste conforme necessário)
-    //         const file = files[0];
-    //         const chunks = [];
-    //         const downloadStream = bucket.openDownloadStream(file._id);
-    
-    //         const imageBuffer = await new Promise((resolve, reject) => {
-    //             downloadStream.on("data", (chunk) => chunks.push(chunk));
-    //             downloadStream.on("end", () => resolve(Buffer.concat(chunks)));
-    //             downloadStream.on("error", (err) => reject(err));
-    //         });
-    
-    //         console.log(`Arquivo '${file.filename}' carregado com sucesso.`);
-    //         return {
-    //             filename: file.filename,
-    //             base64: imageBuffer.toString("base64"), // Converte para base64
-    //         };
-    //     } catch (error) {
-    //         console.error("Erro ao recuperar a imagem:", error);
-    //         throw error;
-    //     }
-    // }
-    
-    // static async describe_img_ia(req, res) {
-    //     const { text } = req.body;
-    
-    //     try {
-    //         const imageData = await OrbitaController.recoveImage();
-    //         console.log(imageData)
-    
-    //         if (!imageData) {
-    //             return res.status(404).send("Nenhuma imagem encontrada.");
-    //         }
-    
-    //         const prompt = `
-    //             Descreva a imagem como um audiodescritor experiente baseada na pergunta "${text}" feita por um usuário. Foque nos detalhes importantes para transmitir a cena a uma pessoa cega, 
-    //             respondendo: o que está acontecendo, quem são os personagens ou elementos principais, como é o ambiente ao redor e qual é a sensação geral transmitida pela imagem? 
-    //             Seja claro, objetivo e detalhado, priorizando a informação visual mais relevante sem interpretações subjetivas e responda em português do Brasil.
-    //         `;
-    
-    //         const response = await axios.post("http://localhost:11434/api/generate", {
-    //             model: "llava",
-    //             prompt: prompt,
-    //             images: [imageData.base64], // Inclua no array, se necessário
-    //         });
-    
-    //         return res.status(200).json({
-    //             message: response.data
-    //               .split('\n') // Divide a resposta em linhas
-    //               .filter((line) => line.trim() !== '') // Remove linhas vazias
-    //               .map((line) => JSON.parse(line).response) // Parseia cada linha como JSON e extrai o 'response'
-    //               .join('') // Junta todas as partes em uma única string
-    //         });
+    // Gera o embedding de uma string usando o Ollama
+    static async generateEmbedding(text) {
+        try {
+            const response = await OrbitaController.openaiClient.embeddings.create({
+                model: "llama2:13b",
+                input: text,
+            });
 
-    //     } catch (error) {
-    //         console.error("Erro ao processar a solicitação:", error);
-    //         return res.status(500).send("Erro ao processar a solicitação.");
-    //     }
-    // }
-    
+            return response.data[0].embedding;
+        } catch (error) {
+            console.error("Erro ao gerar embedding:", error);
+            throw error;
+        }
+    }
 }
+
+
