@@ -446,7 +446,7 @@
 //////////////////////////////// Codigo v3 para PDF IA
 
 import OpenAI from 'openai';
-import { getDb } from "../services/db.js";
+import { getDb } from "./src/services/db.js";
 
 export default class OrbitaController {
     // Instância estática reutilizável do cliente OpenAI

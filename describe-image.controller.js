@@ -1,9 +1,7 @@
 
-import { GridFSBucket } from "mongodb";
-import { getDb, closeConnection } from "../services/db.js";
 import axios from "axios";
-import * as pdfjsLib from "pdfjs-dist";
-import OpenAI from 'openai';
+import { GridFSBucket } from "mongodb";
+import { getDb } from "./src/services/db.js";
 
 export default class DescribeImageController {
 
